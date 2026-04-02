@@ -80,8 +80,15 @@ case "$EVENT" in
 esac
 
 # Inject temporal context into Claude's awareness
-# PreToolUse, PostToolUse, UserPromptSubmit, SubagentStart, SubagentStop use hookSpecificOutput
-# Stop uses top-level additionalContext
+#
+# hookSpecificOutput is supported by: PreToolUse, PostToolUse, UserPromptSubmit, SubagentStart
+# Top-level additionalContext is used for: Stop (and other events)
+#
+# SubagentStop: hook fires but Claude Code does not inject output into the parent
+# conversation regardless of format — the runtime's SyncHookJSONOutput union type
+# excludes SubagentStop entirely. We still emit hookSpecificOutput for forward
+# compatibility in case Anthropic adds support (see anthropics/claude-code#5812).
+# Parent-side agent completion timestamps are covered by PostToolUse:Agent.
 case "$EVENT" in
     PreToolUse|PostToolUse|UserPromptSubmit|SubagentStart|SubagentStop)
         cat <<EOF

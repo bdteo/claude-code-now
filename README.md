@@ -27,9 +27,8 @@ Current time: 2026-04-02 15:23:45 CEST | 3h 22m since last message
 [15:23:46] Bash starting
 [15:24:12] Bash completed
 [15:24:13] Agent (general-purpose) started    <- seen by the subagent
-[15:24:13] Agent completed                    <- seen by the parent
-[15:27:45] Agent (general-purpose) finished   <- seen by the parent
-[15:27:45] Turn ended (end_turn)
+[15:24:45] Agent completed                    <- seen by the parent (via PostToolUse)
+[15:24:45] Turn ended (end_turn)
 ```
 
 Claude now knows *when* you're talking to it, *how long* you've been away, and *when each of its own actions happened*. It won't serve stale results. It won't guess about durations. It just works.
@@ -42,7 +41,7 @@ Claude now knows *when* you're talking to it, *how long* you've been away, and *
 | Bash command start | Parent | `[HH:MM:SS] Bash starting` |
 | Any tool completion | Parent | `[HH:MM:SS] Bash completed`, `[HH:MM:SS] Read completed`, etc. |
 | Agent spawned | Subagent | `[HH:MM:SS] Agent (general-purpose) started` |
-| Agent finished | Parent | `[HH:MM:SS] Agent (general-purpose) finished` |
+| Agent finished | Parent | `[HH:MM:SS] Agent completed` (via PostToolUse:Agent) |
 | Turn ended | Parent | `[HH:MM:SS] Turn ended (end_turn)` |
 
 ## Install
@@ -174,6 +173,30 @@ claude plugin remove claude-code-now
 ```bash
 bash uninstall.sh
 ```
+
+## Known limitations
+
+### SubagentStop output is silently discarded
+
+The `SubagentStop` hook fires correctly when a subagent finishes, but **Claude Code does not inject its output into the parent conversation** — regardless of the output format used. This is a structural limitation in the Claude Code runtime: the `SyncHookJSONOutput` TypeScript union type [explicitly excludes](https://github.com/anthropics/claude-code/issues/5812) `SubagentStop` (and `Stop`) from the `hookSpecificOutput` schema that supports `additionalContext`.
+
+In practice, this means:
+
+| Hook | Output injected? | Who sees it? |
+|---|---|---|
+| SubagentStart | Yes | The subagent (child) |
+| SubagentStop | **No** | Nobody — output is parsed but discarded |
+| PostToolUse:Agent | Yes | The parent |
+
+We keep `SubagentStop` registered for forward compatibility — if Anthropic adds `additionalContext` support for this event, it will start working automatically. Parent-side agent completion timestamps are already covered by `PostToolUse:Agent`.
+
+Relevant issues:
+- [anthropics/claude-code#5812](https://github.com/anthropics/claude-code/issues/5812) — feature request for SubagentStop context injection (auto-closed, unresolved)
+- [anthropics/claude-code#15485](https://github.com/anthropics/claude-code/issues/15485) — SDK type analysis confirming the exclusion
+
+### Stop hook uses a different output format
+
+The `Stop` hook does not support `hookSpecificOutput`. It uses the top-level `{"additionalContext": "..."}` format instead. The hook script handles this automatically.
 
 ## How it works
 
