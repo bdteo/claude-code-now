@@ -1,0 +1,12 @@
+{
+  "name": "claude-code-now",
+  "description": "Temporal awareness for Claude Code — injects precise timestamps and elapsed time into every interaction",
+  "version": "1.0.0",
+  "author": {
+    "name": "Boris Teo",
+    "email": "bdteo@users.noreply.github.com"
+  },
+  "hooks": [
+    "./hooks/user-prompt-submit.json"
+  ]
+}

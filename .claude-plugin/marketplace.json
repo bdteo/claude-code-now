@@ -1,0 +1,24 @@
+{
+  "name": "claude-code-now",
+  "metadata": {
+    "description": "Temporal awareness for Claude Code",
+    "version": "1.0.0"
+  },
+  "owner": {
+    "name": "Boris Teo",
+    "email": "bdteo@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-now",
+      "description": "Temporal awareness for Claude Code — injects precise timestamps and elapsed time into every interaction",
+      "author": {
+        "name": "Boris Teo",
+        "email": "bdteo@users.noreply.github.com"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/bdteo/claude-code-now"
+    }
+  ]
+}
