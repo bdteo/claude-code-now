@@ -2,30 +2,68 @@
 
 Temporal awareness for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-Claude Code doesn't tell Claude what time it is between messages. So when you leave for 3 hours and come back asking "check that metric again," Claude thinks no time has passed and may serve stale results or refuse to re-run commands. This hook fixes that.
+## The problem
 
-## What it does
+You're deep in a debugging session with Claude Code. You ask it to check a queue size — it reports 42. You step away for a coffee, come back 20 minutes later, and ask again.
 
-A zero-dependency bash hook for Claude Code's `UserPromptSubmit` event that injects:
+> "The queue size is 42, as I already reported."
 
-- **Precise timestamp** with seconds and timezone on every message
-- **Elapsed time** since your last message in human-friendly format
+You insist. Claude pushes back — "nothing has changed." On the third or fourth attempt it finally re-checks and discovers the queue is now at 3,800. Cue the apologetic "Oh, I see 25 minutes have passed..."
 
-What Claude sees with every prompt:
+This isn't Claude being lazy. **Claude Code simply doesn't tell Claude what time it is.** There's a date in the system prompt, but no clock. Between your messages, Claude has zero sense of how much time has passed — 5 seconds and 5 hours look identical. So it caches answers, skips re-checks, and treats every follow-up as if you asked it a second ago.
+
+But it goes further. When Claude launches a background command or spawns parallel agents, **it can't tell you how long they took.** It doesn't know when its own tools started or finished. Ask "how long did that batch take?" and Claude has to guess from conversation context — because it has no timestamps on its own actions.
+
+Under high cognitive load — monitoring deployments, debugging production issues, running parallel batch jobs — this isn't a minor annoyance. It wastes tokens, breaks your flow, and erodes trust in the tool.
+
+## The fix
+
+A single bash script. Zero dependencies. Installs in one command.
+
+`claude-code-now` hooks into Claude Code's event system and injects precise timestamps across the entire agentic loop:
 
 ```
 Current time: 2026-04-02 15:23:45 CEST | 3h 22m since last message
+[15:23:46] Bash starting
+[15:24:12] Bash completed
+[15:24:13] Agent (general-purpose) started    <- seen by the subagent
+[15:24:13] Agent completed                    <- seen by the parent
+[15:27:45] Agent (general-purpose) finished   <- seen by the parent
+[15:27:45] Turn ended (end_turn)
 ```
+
+Claude now knows *when* you're talking to it, *how long* you've been away, and *when each of its own actions happened*. It won't serve stale results. It won't guess about durations. It just works.
+
+### What gets timestamped
+
+| Event | Who sees it | What Claude sees |
+|---|---|---|
+| Your message | Parent | Full timestamp + elapsed time since last message |
+| Bash command start | Parent | `[HH:MM:SS] Bash starting` |
+| Any tool completion | Parent | `[HH:MM:SS] Bash completed`, `[HH:MM:SS] Read completed`, etc. |
+| Agent spawned | Subagent | `[HH:MM:SS] Agent (general-purpose) started` |
+| Agent finished | Parent | `[HH:MM:SS] Agent (general-purpose) finished` |
+| Turn ended | Parent | `[HH:MM:SS] Turn ended (end_turn)` |
 
 ## Install
 
 ### Option 1: Claude Code Plugin (recommended)
 
 ```bash
-claude plugin add bdteo/claude-code-now
+claude plugin marketplace add bdteo/claude-code-now
+claude plugin install claude-code-now
 ```
 
-That's it. Restart Claude Code.
+Restart Claude Code.
+
+### Update
+
+```bash
+claude plugin marketplace update claude-code-now
+claude plugin update claude-code-now@claude-code-now
+```
+
+Restart Claude Code.
 
 ### Option 2: Script installer
 
@@ -61,6 +99,61 @@ chmod +x claude-code-now/hooks/hook.sh
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+          }
+        ]
+      }
     ]
   }
 }
@@ -84,17 +177,11 @@ bash uninstall.sh
 
 ## How it works
 
-On every prompt submission, the hook:
+The hook script receives JSON on stdin from Claude Code with the event type and context. It extracts the event name, formats a timestamp, and outputs JSON that Claude Code injects as a system reminder — all before Claude processes the next step.
 
-1. Captures the current timestamp with second precision
-2. Reads the last interaction timestamp from `~/.claude/.claude-code-now-last`
-3. Calculates elapsed time and formats it as human-friendly text (`2d 5h`, `3h 22m`, `45m 12s`, `8s`)
-4. Saves the current timestamp for the next invocation
-5. Outputs JSON that Claude Code injects as a system reminder
+For user messages, it also tracks elapsed time since your last message using a state file at `~/.claude/.claude-code-now-last`.
 
-The hook gracefully fails silent (`|| true`) so it never breaks your session.
-
-The entire script is ~40 lines of bash with no dependencies.
+All hooks use `|| true` so they never break your session. The entire script is ~95 lines of bash with zero dependencies.
 
 ## Requirements
 

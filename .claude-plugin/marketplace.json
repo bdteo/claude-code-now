@@ -2,7 +2,7 @@
   "name": "claude-code-now",
   "metadata": {
     "description": "Temporal awareness for Claude Code",
-    "version": "1.0.0"
+    "version": "2.1.0"
   },
   "owner": {
     "name": "Boris Teo",

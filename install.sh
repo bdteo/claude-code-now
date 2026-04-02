@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # claude-code-now installer
-# Adds the UserPromptSubmit hook to ~/.claude/settings.json
+# Adds all hooks to ~/.claude/settings.json
 
 set -euo pipefail
 
@@ -29,51 +29,61 @@ fi
 TMP_FILE=$(mktemp)
 trap 'rm -f "$TMP_FILE"' EXIT
 
+HOOK_CMD="${HOOK_SCRIPT} || true"
+
 # Check if jq is available
 if command -v jq &>/dev/null; then
-    # Build the hook entry
-    HOOK_ENTRY=$(cat <<HOOKJSON
+    # Generic hook entry (all events except PreToolUse)
+    ALL_ENTRY=$(cat <<HOOKJSON
 {
     "matcher": "",
     "hooks": [
         {
             "type": "command",
-            "command": "${HOOK_SCRIPT}"
+            "command": "${HOOK_CMD}"
         }
     ]
 }
 HOOKJSON
     )
 
-    # Add hook to settings using jq
-    jq --argjson hook "$HOOK_ENTRY" '
-        .hooks //= {} |
-        .hooks.UserPromptSubmit //= [] |
-        .hooks.UserPromptSubmit += [$hook]
-    ' "$SETTINGS_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$SETTINGS_FILE"
-
-    echo "Installed claude-code-now successfully."
-    echo ""
-    echo "Hook script: ${HOOK_SCRIPT}"
-    echo "Settings:    ${SETTINGS_FILE}"
-    echo ""
-    echo "Restart Claude Code for the hook to take effect."
-else
-    echo "jq is not installed. Please add the following manually to ${SETTINGS_FILE}:"
-    echo ""
-    echo "Under \"hooks\" -> \"UserPromptSubmit\", add:"
-    echo ""
-    cat <<MANUAL
+    # Bash-only hook entry (PreToolUse)
+    BASH_ENTRY=$(cat <<HOOKJSON
 {
-    "matcher": "",
+    "matcher": "Bash",
     "hooks": [
         {
             "type": "command",
-            "command": "${HOOK_SCRIPT}"
+            "command": "${HOOK_CMD}"
         }
     ]
 }
-MANUAL
+HOOKJSON
+    )
+
+    # Add all hooks to settings
+    jq --argjson all "$ALL_ENTRY" --argjson bash "$BASH_ENTRY" '
+        .hooks //= {} |
+        .hooks.UserPromptSubmit //= [] | .hooks.UserPromptSubmit += [$all] |
+        .hooks.PreToolUse //= []       | .hooks.PreToolUse += [$bash] |
+        .hooks.PostToolUse //= []      | .hooks.PostToolUse += [$all] |
+        .hooks.SubagentStart //= []    | .hooks.SubagentStart += [$all] |
+        .hooks.SubagentStop //= []     | .hooks.SubagentStop += [$all] |
+        .hooks.Stop //= []             | .hooks.Stop += [$all]
+    ' "$SETTINGS_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$SETTINGS_FILE"
+
+    echo "Installed claude-code-now successfully (6 hooks registered)."
+    echo ""
+    echo "  Hook script: ${HOOK_SCRIPT}"
+    echo "  Settings:    ${SETTINGS_FILE}"
+    echo ""
+    echo "  Events: UserPromptSubmit, PreToolUse (Bash), PostToolUse,"
+    echo "          SubagentStart, SubagentStop, Stop"
+    echo ""
+    echo "Restart Claude Code for the hooks to take effect."
+else
+    echo "jq is not installed. Please add the hooks manually to ${SETTINGS_FILE}."
+    echo "See the README for the full manual configuration."
     echo ""
     echo "Install jq (brew install jq / apt install jq) for automatic installation."
     exit 1
