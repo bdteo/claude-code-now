@@ -1,86 +1,152 @@
-# claude-code-now
+# CodeNow
 
-Temporal awareness for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Temporal awareness for Claude Code and Codex.
+
+CodeNow injects precise timestamps into coding-agent hook context so the agent knows the current time, how long it has been since your last message, and, where the runtime supports it, when tools start and finish.
+
+The plugin ID is `code-now` for both Claude Code and Codex.
 
 ## The problem
 
-You're deep in a debugging session with Claude Code. You ask it to check a queue size — it reports 42. You step away for a coffee, come back 20 minutes later, and ask again.
+You're deep in a debugging session. You ask the agent to check a queue size and it reports 42. You step away for coffee, come back 20 minutes later, and ask again.
 
 > "The queue size is 42, as I already reported."
 
-You insist. Claude pushes back — "nothing has changed." On the third or fourth attempt it finally re-checks and discovers the queue is now at 3,800. Cue the apologetic "Oh, I see 25 minutes have passed..."
+The agent is not necessarily being lazy. Coding-agent runtimes often include a date in the system prompt, but not a live clock. Between your messages, 5 seconds and 5 hours can look identical. That encourages stale answers, skipped re-checks, and guessed durations.
 
-This isn't Claude being lazy. **Claude Code simply doesn't tell Claude what time it is.** There's a date in the system prompt, but no clock. Between your messages, Claude has zero sense of how much time has passed — 5 seconds and 5 hours look identical. So it caches answers, skips re-checks, and treats every follow-up as if you asked it a second ago.
-
-But it goes further. When Claude launches a background command or spawns parallel agents, **it can't tell you how long they took.** It doesn't know when its own tools started or finished. Ask "how long did that batch take?" and Claude has to guess from conversation context — because it has no timestamps on its own actions.
-
-Under high cognitive load — monitoring deployments, debugging production issues, running parallel batch jobs — this isn't a minor annoyance. It wastes tokens, breaks your flow, and erodes trust in the tool.
+This is especially painful during deployments, production debugging, queue monitoring, and parallel agent work.
 
 ## The fix
 
-A single bash script. Zero dependencies. Installs in one command.
+A single bash script, packaged for both Claude Code and Codex.
 
-`claude-code-now` hooks into Claude Code's event system and injects precise timestamps across the entire agentic loop:
+Example Claude Code context:
 
-```
+```text
 Current time: 2026-04-02 15:23:45 CEST | 3h 22m since last message
 [15:23:46] Bash starting
 [15:24:12] Bash completed
-[15:24:13] Agent (general-purpose) started    <- seen by the subagent
-[15:24:45] Agent completed                    <- seen by the parent (via PostToolUse)
+[15:24:13] Agent (general-purpose) started
+[15:24:45] Agent completed
 [15:24:45] Turn ended (end_turn)
 ```
 
-Claude now knows *when* you're talking to it, *how long* you've been away, and *when each of its own actions happened*. It won't serve stale results. It won't guess about durations. It just works.
+Example Codex context:
 
-### What gets timestamped
+```text
+Current time: 2026-04-02 15:23:45 CEST | 3h 22m since last message
+[15:24:12] Bash completed
+```
 
-| Event | Who sees it | What Claude sees |
+Codex currently supports model-visible hook context for `SessionStart`, `UserPromptSubmit`, and `PostToolUse`. It does not yet add `PreToolUse` `additionalContext` to model context, so CodeNow intentionally treats Codex tool-start timestamps as a no-op until the runtime supports them.
+
+## What gets timestamped
+
+### Claude Code
+
+| Event | Who sees it | What the agent sees |
 |---|---|---|
 | Your message | Parent | Full timestamp + elapsed time since last message |
 | Bash command start | Parent | `[HH:MM:SS] Bash starting` |
 | Any tool completion | Parent | `[HH:MM:SS] Bash completed`, `[HH:MM:SS] Read completed`, etc. |
 | Agent spawned | Subagent | `[HH:MM:SS] Agent (general-purpose) started` |
-| Agent finished | Parent | `[HH:MM:SS] Agent completed` (via PostToolUse:Agent) |
+| Agent finished | Parent | `[HH:MM:SS] Agent completed` via `PostToolUse:Agent` |
 | Turn ended | Parent | `[HH:MM:SS] Turn ended (end_turn)` |
+
+### Codex
+
+| Event | What happens |
+|---|---|
+| `SessionStart` | Adds current timestamp as developer context |
+| `UserPromptSubmit` | Adds current timestamp + elapsed time since last message |
+| `PostToolUse` | Adds `[HH:MM:SS] <tool> completed` |
+| `PreToolUse` | Runs successfully but emits no model-visible context because Codex does not support it yet |
+| `Stop` | Runs successfully and preserves normal Codex flow |
 
 ## Install
 
-### Option 1: Claude Code Plugin (recommended)
+### Claude Code plugin
 
 ```bash
-claude plugin marketplace add bdteo/claude-code-now
-claude plugin install claude-code-now
+claude plugin marketplace add bdteo/CodeNow
+claude plugin install code-now
 ```
 
 Restart Claude Code.
 
-### Update
+### Claude Code script installer
 
 ```bash
-claude plugin marketplace update claude-code-now
-claude plugin update claude-code-now@claude-code-now
-```
-
-Restart Claude Code.
-
-### Option 2: Script installer
-
-```bash
-git clone https://github.com/bdteo/claude-code-now.git
-cd claude-code-now
+git clone https://github.com/bdteo/CodeNow.git
+cd CodeNow
 bash install.sh
 ```
 
 Restart Claude Code.
 
-### Option 3: Manual
+### Codex plugin
+
+Codex hooks must be enabled first:
+
+```toml
+[features]
+codex_hooks = true
+```
+
+Then add the marketplace and install the plugin:
+
+```bash
+codex plugin marketplace add bdteo/CodeNow
+```
+
+Restart Codex, open `/plugins`, choose the `CodeNow` marketplace, and install `CodeNow`.
+
+For local development from this checkout, restart Codex after changing plugin files so the plugin cache can refresh.
+
+## Update
+
+### Claude Code
+
+```bash
+claude plugin marketplace update code-now
+claude plugin update code-now@code-now
+```
+
+Restart Claude Code.
+
+### Codex
+
+```bash
+codex plugin marketplace upgrade code-now
+```
+
+Restart Codex.
+
+## Uninstall
+
+### Claude Code plugin
+
+```bash
+claude plugin remove code-now
+```
+
+### Claude Code script install
+
+```bash
+bash uninstall.sh
+```
+
+### Codex plugin
+
+Open `/plugins`, select `CodeNow`, and choose `Uninstall plugin`. To keep it installed but disabled, set `[plugins."code-now@code-now"].enabled = false` in `~/.codex/config.toml`, then restart Codex.
+
+## Manual Claude Code install
 
 1. Clone the repo and make the hook executable:
 
 ```bash
-git clone https://github.com/bdteo/claude-code-now.git
-chmod +x claude-code-now/hooks/hook.sh
+git clone https://github.com/bdteo/CodeNow.git
+chmod +x CodeNow/hooks/hook.sh
 ```
 
 2. Add this to `~/.claude/settings.json`:
@@ -94,7 +160,7 @@ chmod +x claude-code-now/hooks/hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"/absolute/path/to/CodeNow/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -105,7 +171,7 @@ chmod +x claude-code-now/hooks/hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"/absolute/path/to/CodeNow/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -116,7 +182,7 @@ chmod +x claude-code-now/hooks/hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"/absolute/path/to/CodeNow/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -127,7 +193,7 @@ chmod +x claude-code-now/hooks/hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"/absolute/path/to/CodeNow/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -138,7 +204,7 @@ chmod +x claude-code-now/hooks/hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"/absolute/path/to/CodeNow/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -149,7 +215,7 @@ chmod +x claude-code-now/hooks/hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/claude-code-now/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"/absolute/path/to/CodeNow/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -160,67 +226,54 @@ chmod +x claude-code-now/hooks/hook.sh
 
 3. Restart Claude Code.
 
-## Uninstall
-
-**Plugin install:**
-
-```bash
-claude plugin remove claude-code-now
-```
-
-**Script install:**
-
-```bash
-bash uninstall.sh
-```
-
 ## Known limitations
 
-### SubagentStop output is silently discarded
+### Codex `PreToolUse` context is not injected yet
 
-The `SubagentStop` hook fires correctly when a subagent finishes, but **Claude Code does not inject its output into the parent conversation** — regardless of the output format used. This is a structural limitation in the Claude Code runtime: the `SyncHookJSONOutput` TypeScript union type [explicitly excludes](https://github.com/anthropics/claude-code/issues/5812) `SubagentStop` (and `Stop`) from the `hookSpecificOutput` schema that supports `additionalContext`.
+Codex parses `additionalContext` for `PreToolUse`, but the current runtime does not add it to model context. CodeNow still registers the event for forward compatibility, but the hook intentionally exits successfully without stdout for Codex `PreToolUse`.
 
-In practice, this means:
+### Claude Code `SubagentStop` output is silently discarded
 
-| Hook | Output injected? | Who sees it? |
-|---|---|---|
-| SubagentStart | Yes | The subagent (child) |
-| SubagentStop | **No** | Nobody — output is parsed but discarded |
-| PostToolUse:Agent | Yes | The parent |
+The `SubagentStop` hook fires when a subagent finishes, but Claude Code does not inject its output into the parent conversation. CodeNow keeps the hook registered for forward compatibility. Parent-side agent completion timestamps are covered by `PostToolUse:Agent`.
 
-We keep `SubagentStop` registered for forward compatibility — if Anthropic adds `additionalContext` support for this event, it will start working automatically. Parent-side agent completion timestamps are already covered by `PostToolUse:Agent`.
+### Stop hooks differ by runtime
 
-Relevant issues:
-- [anthropics/claude-code#5812](https://github.com/anthropics/claude-code/issues/5812) — feature request for SubagentStop context injection (auto-closed, unresolved)
-- [anthropics/claude-code#15485](https://github.com/anthropics/claude-code/issues/15485) — SDK type analysis confirming the exclusion
-
-### Stop hook uses a different output format
-
-The `Stop` hook does not support `hookSpecificOutput`. It uses the top-level `{"additionalContext": "..."}` format instead. The hook script handles this automatically.
+Claude Code accepts top-level `additionalContext` for `Stop`. Codex `Stop` expects JSON control output and does not use `additionalContext` as model-visible temporal context, so CodeNow returns `{"continue":true}` and leaves normal turn flow unchanged.
 
 ## How it works
 
-The hook script receives JSON on stdin from Claude Code with the event type and context. It extracts the event name, formats a timestamp, and outputs JSON that Claude Code injects as a system reminder — all before Claude processes the next step.
+The hook script receives JSON on stdin from the runtime. It extracts the hook event name, formats a timestamp, and emits runtime-specific JSON.
 
-For user messages, it also tracks elapsed time since your last message using a state file at `~/.claude/.claude-code-now-last`.
+For user messages, it tracks elapsed time using runtime-specific state files:
 
-All hooks use `|| true` so they never break your session. The entire script is ~95 lines of bash with zero dependencies.
+- Claude Code: `~/.claude/.code-now-last`
+- Codex: `${CODEX_HOME:-~/.codex}/.code-now-last`
+
+The hook itself has no dependency on `jq`. The Claude script installer and uninstaller use `jq` to edit `~/.claude/settings.json`.
 
 ## Requirements
 
-- Claude Code v1.0.55+
 - bash
-- `jq` (only for `install.sh` / `uninstall.sh` — the hook itself has zero dependencies)
+- Claude Code v1.0.55+ for Claude support
+- Codex with `[features].codex_hooks = true` for Codex support
+- `jq` only for `install.sh` / `uninstall.sh`
 
-## Why not just use CLAUDE.md?
+## Why not just use AGENTS.md or CLAUDE.md?
 
-Adding "always check the time before responding" to your CLAUDE.md is unreliable. Claude may ignore it, forget it after context compaction, or decide it's not relevant. A hook runs **every time**, injecting the timestamp at the system level before Claude even sees your message.
+Adding "always check the time before responding" to instruction files is unreliable. The agent may ignore it, forget after context compaction, or decide it is irrelevant. A hook runs every time and injects timestamp context before the model continues.
+
+## References
+
+- Codex hooks: https://developers.openai.com/codex/hooks
+- Codex plugins: https://developers.openai.com/codex/plugins
+- Codex plugin build guide: https://developers.openai.com/codex/plugins/build
+- Claude Code hooks: https://docs.anthropic.com/en/docs/claude-code/hooks
 
 ## Prior art
 
-- [anthropics/claude-code#2618](https://github.com/anthropics/claude-code/issues/2618) — the issue that surfaced this gap
-- [hodgesmr/temporal-awareness](https://github.com/hodgesmr/temporal-awareness) — a skill-based approach (on-demand, not passive)
-- [veteranbv/claude-UserPromptSubmit-hook](https://github.com/veteranbv/claude-UserPromptSubmit-hook) — Python-based hook with broader scope
+- https://github.com/anthropics/claude-code/issues/2618
+- https://github.com/hodgesmr/temporal-awareness
+- https://github.com/veteranbv/claude-UserPromptSubmit-hook
 
 ## License
 

@@ -1,8 +1,8 @@
 {
-  "name": "claude-code-now",
+  "name": "code-now",
   "metadata": {
-    "description": "Temporal awareness for Claude Code",
-    "version": "2.1.0"
+    "description": "Temporal awareness for Claude Code and Codex",
+    "version": "2.2.0"
   },
   "owner": {
     "name": "Boris Teo",
@@ -10,15 +10,15 @@
   },
   "plugins": [
     {
-      "name": "claude-code-now",
-      "description": "Temporal awareness for Claude Code — injects precise timestamps and elapsed time into every interaction",
+      "name": "code-now",
+      "description": "Temporal awareness for Claude Code and Codex - injects precise timestamps and elapsed time into agent context",
       "author": {
         "name": "Boris Teo",
         "email": "bdteo@users.noreply.github.com"
       },
       "source": "./",
       "category": "productivity",
-      "homepage": "https://github.com/bdteo/claude-code-now"
+      "homepage": "https://github.com/bdteo/CodeNow"
     }
   ]
 }

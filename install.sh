@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-code-now installer
+# CodeNow installer
 # Adds all hooks to ~/.claude/settings.json
 
 set -euo pipefail
@@ -19,8 +19,8 @@ if [[ ! -f "$SETTINGS_FILE" ]]; then
 fi
 
 # Check if hook is already installed
-if grep -q "claude-code-now" "$SETTINGS_FILE" 2>/dev/null; then
-    echo "claude-code-now is already installed in ${SETTINGS_FILE}"
+if grep -Eq "code-now|CodeNow|claude-code-now" "$SETTINGS_FILE" 2>/dev/null; then
+    echo "CodeNow is already installed in ${SETTINGS_FILE}"
     echo "Run uninstall.sh first if you want to reinstall."
     exit 0
 fi
@@ -29,7 +29,7 @@ fi
 TMP_FILE=$(mktemp)
 trap 'rm -f "$TMP_FILE"' EXIT
 
-HOOK_CMD="${HOOK_SCRIPT} || true"
+HOOK_CMD="CODE_NOW_RUNTIME=claude \"${HOOK_SCRIPT}\" || true"
 
 # Check if jq is available
 if command -v jq &>/dev/null; then
@@ -72,7 +72,7 @@ HOOKJSON
         .hooks.Stop //= []             | .hooks.Stop += [$all]
     ' "$SETTINGS_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$SETTINGS_FILE"
 
-    echo "Installed claude-code-now successfully (6 hooks registered)."
+    echo "Installed CodeNow successfully (6 hooks registered)."
     echo ""
     echo "  Hook script: ${HOOK_SCRIPT}"
     echo "  Settings:    ${SETTINGS_FILE}"

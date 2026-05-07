@@ -1,7 +1,7 @@
 {
-  "name": "claude-code-now",
-  "description": "Temporal awareness for Claude Code — injects precise timestamps and elapsed time into every interaction",
-  "version": "2.1.0",
+  "name": "code-now",
+  "description": "Temporal awareness for Claude Code and Codex - injects precise timestamps and elapsed time into agent context",
+  "version": "2.2.0",
   "author": {
     "name": "Boris Teo",
     "email": "bdteo@users.noreply.github.com"
@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh\" || true"
           }
         ]
       }
@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh || true"
+            "command": "CODE_NOW_RUNTIME=claude \"${CLAUDE_PLUGIN_ROOT}/hooks/hook.sh\" || true"
           }
         ]
       }
